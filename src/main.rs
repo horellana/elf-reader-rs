@@ -236,27 +236,27 @@ impl ELFHeaders {
                 let e_shentsize = parser.get_section_header_size()?;
                 let e_shnum = parser.get_section_header_entry_count()?;
                 let e_shstrndx = parser.get_section_header_table_index()?;
-                let e_pad = [0 as u8; 7];
+                let e_pad = [0_u8; 7];
 
                 let elf_headers = ELFHeaders {
-                    e_class: e_class,
-                    e_data: e_data,
-                    e_version: e_version,
-                    e_osabi: e_osabi,
-                    e_abiversion: e_abiversion,
-                    e_type: e_type,
-                    e_machine: e_machine,
-                    e_entry: e_entry,
-                    e_phoff: e_phoff,
-                    e_shoff: e_shoff,
-                    e_flags: e_flags,
-                    e_ehsize: e_ehsize,
-                    e_phentsize: e_phentsize,
-                    e_phnum: e_phnum,
-                    e_shentsize: e_shentsize,
-                    e_shnum: e_shnum,
-                    e_shstrndx: e_shstrndx,
-                    e_pad: e_pad,
+                    e_class,
+                    e_data,
+                    e_version,
+                    e_osabi,
+                    e_abiversion,
+                    e_type,
+                    e_machine,
+                    e_entry,
+                    e_phoff,
+                    e_shoff,
+                    e_flags,
+                    e_ehsize,
+                    e_phentsize,
+                    e_phnum,
+                    e_shentsize,
+                    e_shnum,
+                    e_shstrndx,
+                    e_pad,
                 };
 
                 Ok(elf_headers)
@@ -290,7 +290,7 @@ impl ELFParser {
             read_u64(range, endianess).ok()?
         };
 
-        return Some(n);
+        Some(n)
     }
 
     fn get_section_header_table_index(&self) -> Result<u16, ELFError> {
@@ -512,7 +512,7 @@ impl ELFParser {
         let bytes_result = fs::read(path);
 
         match bytes_result {
-            Ok(bytes) => Ok(ELFParser { bytes: bytes }),
+            Ok(bytes) => Ok(ELFParser { bytes }),
             _ => Err(ELFError::InvalidFile),
         }
     }
@@ -521,13 +521,13 @@ impl ELFParser {
 fn show_headers(elf: ELFHeaders) {
     println!("ELF Header:");
     println!(" Magic: ");
-    println!(" Class: {}", elf.e_class.to_string());
-    println!(" Data: {}", elf.e_data.to_string());
-    println!(" Version: {}", elf.e_version.to_string());
-    println!(" OS/ABI: {}", elf.e_osabi.to_string());
-    println!(" ABI Version: {}", elf.e_abiversion.to_string());
-    println!(" Type: {}", elf.e_type.to_string());
-    println!(" Machine: {}", elf.e_machine.to_string());
+    println!(" Class: {}", elf.e_class);
+    println!(" Data: {}", elf.e_data);
+    println!(" Version: {}", elf.e_version);
+    println!(" OS/ABI: {}", elf.e_osabi);
+    println!(" ABI Version: {}", elf.e_abiversion);
+    println!(" Type: {}", elf.e_type);
+    println!(" Machine: {}", elf.e_machine);
     println!(" Entry point address: {:#01X}", elf.e_entry);
     println!(
         " Start of program headers: {} (bytes into file)",
@@ -562,7 +562,7 @@ fn main() -> io::Result<()> {
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -865,7 +865,7 @@ mod tests {
             ],
         };
 
-        let expected: Result<&[u8], ELFError> = Ok(&[0 as u8, 0, 0, 0, 0, 0, 0]);
+        let expected: Result<&[u8], ELFError> = Ok(&[0_u8, 0, 0, 0, 0, 0, 0]);
         let got = elf.get_padding();
 
         assert_eq!(expected, got);
