@@ -1,9 +1,23 @@
 use std::fs;
 use std::io;
+use std::process;
 use std::path::Path;
 
 extern crate endianness;
 use endianness::*;
+use clap::Parser;
+
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct CommandLineArguments {
+    #[clap(value_parser)]
+    file_path: String,
+
+    #[clap(short='h', long)]
+    file_headers: bool
+}
+
 
 #[derive(Debug, PartialEq)]
 enum ELFISA {
@@ -348,6 +362,7 @@ impl ELFFile {
     }
 
     fn from_file(path: &Path) -> Result<ELFFile, ELFError> {
+        println!("Reading bytes from file {:?}", path);
         let bytes_result = fs::read(path);
 
         match bytes_result {
@@ -420,18 +435,18 @@ fn show_headers(elf: ELFFile) -> Result<(), ELFError> {
 }
 
 fn main() -> io::Result<()> {
-    let path = Path::new("./test/example.elf");
-    let elf_result = ELFFile::from_file(path);
+    let args = CommandLineArguments::parse();
+    let elf_result = ELFFile::from_file(Path::new(&args.file_path));
 
     match elf_result {
         Ok(elf) => {
-            elf.get_program_header_start();
-            show_headers(elf);
-        }
-        _ => {
-            ({
-                println!("Could not load elf file");
-            })
+            if args.file_headers {
+                show_headers(elf);
+            }
+        },
+        Err(e) => {
+            eprintln!("Error when trying to read file {:?}", e);
+            process::exit(1);
         }
     }
 
