@@ -14,7 +14,7 @@ struct CommandLineArguments {
     #[clap(value_parser)]
     file_path: String,
 
-    #[clap(short='h', long)]
+    #[clap(short='h', long, help="Display the ELF file header")]
     file_headers: bool
 }
 
