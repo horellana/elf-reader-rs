@@ -25,6 +25,12 @@ enum ELFVersion {
 #[derive(Debug)]
 #[derive(PartialEq)]
 enum ELFError {
+    InvalidSectionHeaderEntryCount,
+    InvalidSectionHeaderTableSize,
+    InvalidProgramHeaderEntriesNumber,
+    InvalidProgramHeaderTableSize,
+    InvalidHeaderSize,
+    InvalidEFlags,
     InvalidFile,
     InvalidIsa,
     InvalidOsAbi,
@@ -91,58 +97,121 @@ struct ELFFile {
     bytes: Vec<u8>,
 }
 
-impl Default for ELFFile {
-    fn default() -> ELFFile {
-        ELFFile { bytes: vec![] }
-    }
-}
-
 impl ELFFile {
-    fn get_section_header_start(&self) -> Result<u16, ELFError> {
-        let size = if self.is_64bit() { 8 } else { 4 };
-        let start = 39;
-
-        let mut bytes: [u8; 8] = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
-        let mut bytes_position = 0;
-
-        for i in start..start+size {
-            if self.bytes[i] != 0 {
-                bytes[bytes_position] = self.bytes[i];
-                bytes_position = bytes_position + 1;
-            }
+    fn get_bytes(&self, start: usize, end: usize) -> Option<u64> {
+        if self.bytes.len() < end - 1 {
+            println!("Invalid bytes length");
+            return None
         }
 
-        let endianess = if self.is_big_endian() { ByteOrder::BigEndian } else { ByteOrder::LittleEndian };
-        let section_start = read_u16(&bytes, endianess);
+        let endianess = if self.is_big_endian() {
+            ByteOrder::BigEndian
+        }
+        else {
+            ByteOrder::LittleEndian
+        };
 
-        match section_start {
-            Ok(section_start) => Ok(section_start),
-            _ => Err(ELFError::InvalidSectionHeaderStart)
+        let dv = end - start;
+        let range = &self.bytes[start..end];
+
+        let n : u64 = if dv == 2 {
+            read_u16(range, endianess).ok()? as u64
+        }
+        else if dv == 4 {
+            read_u32(range, endianess).ok()? as u64
+        }
+        else {
+            read_u64(range, endianess).ok()?
+        };
+
+        return Some(n)
+    }
+
+    fn get_section_header_table_index(&self) -> Result<u16, ELFError> {
+        let n = self.get_bytes(62, 64);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidSectionHeaderEntryCount)
+        }
+    }
+
+    fn get_section_header_entry_count(&self) -> Result<u16, ELFError> {
+        let n = self.get_bytes(60, 62);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidSectionHeaderEntryCount)
+        }
+    }
+
+    fn get_section_header_size(&self) -> Result<u16, ELFError> {
+        let n = self.get_bytes(58, 60);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidSectionHeaderTableSize)
+        }
+    }
+
+    fn get_program_header_entries_number(&self) -> Result<u32, ELFError> {
+        let n = self.get_bytes(56, 58);
+
+        match n {
+            Some(n) => Ok(n as u32),
+            None => Err(ELFError::InvalidProgramHeaderEntriesNumber)
+        }
+    }
+
+    fn get_program_header_table_size(&self) -> Result<u16, ELFError> {
+        let start = if self.is_64bit() { 54 } else { 43 };
+        let n = self.get_bytes(start, start + 2);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidProgramHeaderTableSize)
+        }
+    }
+
+    fn get_header_size(&self) -> Result<u16, ELFError> {
+        let start = if self.is_64bit() { 52 } else { 41 };
+        let n = self.get_bytes(start, start + 2);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidHeaderSize)
+        }
+    }
+
+    fn get_e_flags(&self) -> Result<u16, ELFError> {
+        let start = if self.is_64bit() { 48 } else { 37 };
+        let n = self.get_bytes(start, start + 2);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidEFlags)
+        }
+    }
+
+    fn get_section_header_start(&self) -> Result<u16, ELFError> {
+        let start = if self.is_64bit() { 40 } else { 33 };
+        let size = if self.is_64bit() { 8 } else { 4 };
+        let n = self.get_bytes(start, start + size);
+
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidSectionHeaderStart)
         }
     }
 
     fn get_program_header_start(&self) -> Result<u16, ELFError> {
+        let start = if self.is_64bit() { 32 } else { 28 };
         let size = if self.is_64bit() { 8 } else { 4 };
-        let start = 31;
+        let n = self.get_bytes(start, start + size);
 
-        let mut bytes: [u8; 8] = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
-        let mut bytes_position = 0;
-
-        for i in start..start+size {
-            if self.bytes[i] != 0 {
-                bytes[bytes_position] = self.bytes[i];
-                bytes_position = bytes_position + 1;
-            }
-        }
-
-        println!("{:?}", bytes);
-
-        let endianess = if self.is_big_endian() { ByteOrder::BigEndian } else { ByteOrder::LittleEndian };
-        let header_start = read_u16(&bytes, endianess);
-
-        match header_start {
-            Ok(header_start) => Ok(header_start),
-            _ => Err(ELFError::InvalidProgramHeaderStart)
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidProgramHeaderStart)
         }
     }
 
@@ -161,30 +230,14 @@ impl ELFFile {
     }
 
     fn get_entry_point(&self) -> Result<u16, ELFError> {
-        let start = 23;
+        let start = 24;
         let size = if self.is_64bit() { 8 } else { 4 };
-        let mut bytes: [u8; 8] = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
-        let mut bytes_position = 0;
 
-        for i in start..start+size {
-            if self.bytes[i] != 0 {
-                bytes[bytes_position] = self.bytes[i];
-                bytes_position = bytes_position + 1;
-            }
-        }
+        let n = self.get_bytes(start, start + size);
 
-        let endianness = if self.is_big_endian() {
-            ByteOrder::BigEndian
-        }
-        else {
-            ByteOrder::LittleEndian
-        };
-
-        let entry = read_u16(&bytes, endianness);
-
-        match entry {
-            Ok(entry) => Ok(entry),
-            _ => Err(ELFError::InvalidEntryPoint)
+        match n {
+            Some(n) => Ok(n as u16),
+            None => Err(ELFError::InvalidEntryPoint)
         }
     }
 
@@ -319,9 +372,7 @@ impl ELFFile {
     }
 }
 
-fn show_headers(elf: ELFFile) -> Result<(), ELFError>{
-    let program_header_start = elf.get_program_header_start()?;
-
+fn show_headers(elf: ELFFile) -> Result<(), ELFError> {
     println!("ELF Header:");
     println!(" Magic: ");
     println!(" Class: {}", if elf.is_64bit() { "ELF64" } else { "ELF32" });
@@ -332,7 +383,15 @@ fn show_headers(elf: ELFFile) -> Result<(), ELFError>{
     println!(" Type: {}", elf.get_object_file_type_string());
     println!(" Machine: {}", elf.get_machine_string());
     println!(" Entry point address: {:#01X}", elf.get_entry_point().unwrap_or_default());
-    println!(" Start of program headers: {} (bytes into file)", program_header_start);
+    println!(" Start of program headers: {} (bytes into file)", elf.get_program_header_start()?);
+    println!(" Start of section headers: {} (bytes into file)", elf.get_section_header_start()?);
+    println!(" Flags: {}", elf.get_e_flags()?);
+    println!(" Size of this header: {} (bytes)", elf.get_header_size()?);
+    println!(" Size of program headers: {} (bytes)", elf.get_program_header_table_size()?);
+    println!(" Number of program headers: {}", elf.get_program_header_entries_number()?);
+    println!(" Size of section headers: {} (bytes)", elf.get_section_header_size()?);
+    println!(" Number of section headers: {}", elf.get_section_header_entry_count()?);
+    println!(" Section header string table index: {}", elf.get_section_header_table_index()?);
 
     Ok(())
 }
@@ -346,34 +405,175 @@ fn main() -> io::Result<()> {
             elf.get_program_header_start();
             show_headers(elf);
         },
-        _ => {
+        _ => ({
             println!("Could not load elf file");
-        }
+        })
     }
 
     return Ok(());
 }
 
+
 #[cfg(test)]
 mod tests {
     use crate::{ELFFile, ELFVersion, ELFISA, ELFABI, ELFObjectFileType, ELFError};
 
-    // #[test]
-    // fn test_get_program_section_header_start_64bit() {
-    //     let elf = ELFFile {
-    //         bytes: vec![0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0 ,0 ,0, 0x40, 0x10, 0, 0, 0, 0, 0, 0, 0x40, 0, 0, 0, 0, 0, 0, 0, 0, 0x47, 0, 0, 0, 0 ,0 ,0]
-    //     };
+    #[test]
+    fn test_get_section_header_table_index_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+        bytes[4] = 0x02;
 
-    //     let expected = Some(56);
-    //     let got = elf.get_section_header_start();
+        bytes[62] = 0x24;
+        bytes[63] = 0x00;
 
-    //     assert_eq!(expected, got);
-    // }
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(0x0024);
+        let got = elf.get_section_header_table_index();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn test_get_number_of_entries_section_header_table_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+        bytes[4] = 0x02;
+
+        bytes[60] = 0x25;
+        bytes[61] = 0x00;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(0x0025);
+        let got = elf.get_section_header_entry_count();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn test_get_section_header_table_size_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+        bytes[4] = 0x02;
+
+        bytes[58] = 0x40;
+        bytes[59] = 0x00;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(64);
+        let got = elf.get_section_header_size();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn test_get_number_of_entries_in_program_header_table_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+        bytes[4] = 0x02;
+
+        bytes[56] = 0x0D;
+        bytes[57] = 0x00;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(0x000D);
+        let got = elf.get_program_header_entries_number();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn test_get_program_header_table_size_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+
+        bytes[4] = 0x02;
+
+        bytes[54] = 0x38;
+        bytes[55] = 0x00;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(56);
+        let got = elf.get_program_header_table_size();
+
+        assert_eq!(expected, got);
+    }
+
+
+    #[test]
+    fn test_get_header_size_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+
+        bytes[4] = 0x02;
+
+        bytes[52] = 0x40;
+        bytes[53] = 0x00;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(64);
+        let got = elf.get_header_size();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn test_get_e_flags_64_bits() {
+        let mut bytes: [u8; 256] = [0; 256];
+
+        bytes[4] = 0x02;
+        bytes[48] = 0;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(0x0);
+        let got = elf.get_e_flags();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn test_get_program_section_header_start_64bit() {
+        let mut bytes: [u8; 256] = [0; 256];
+
+        bytes[4] = 0x02;
+        bytes[41] = 0x47;
+
+        let elf = ELFFile {
+            bytes: bytes.to_vec()
+        };
+
+        let expected = Ok(18176);
+        let got = elf.get_section_header_start();
+
+        println!("{}", elf.is_64bit());
+
+        assert_eq!(expected, got);
+    }
 
     #[test]
     fn test_get_program_header_start_64bit() {
+        let mut bytes: [u8; 256] = [0; 256];
+
+        bytes[4] = 0x02;
+        bytes[32] = 0x40;
+
         let elf = ELFFile {
-            bytes: vec![0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0 ,0 ,0, 0x40, 0x10, 0, 0, 0, 0, 0, 0, 0x40, 0, 0, 0, 0, 0, 0, 0]
+            bytes: bytes.to_vec()
         };
 
         let expected = Ok(64);
@@ -417,7 +617,6 @@ mod tests {
 
         assert_eq!(expected, got);
     }
-
 
     #[test]
     fn test_get_e_version_invalid() {

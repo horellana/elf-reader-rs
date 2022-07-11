@@ -1,0 +1,23 @@
+* ELF Headers
+| name         | size | offset | range        |
+|--------------+------+--------+--------------|
+| elf magic    |    4 |      0 | 0 3          |
+| e_class      |    1 |      4 | 4 4          |
+| e_data       |    1 |      5 | 5 5          |
+| e_version    |    1 |      6 | 6 6          |
+| e_osabi      |    1 |      7 | 7 7          |
+| e_abiversion |    1 |      8 | 8 8          |
+| e_pad        |    7 |     10 | 9 15         |
+| e_type       |    2 |     17 | 16 17        |
+| e_machine    |    2 |     19 | 18 19        |
+| e_version    |    4 |     21 | 20 23        |
+| e_entry      |  4 8 |     25 | 24 27  24 31 |
+| e_phoff      |  4 8 |  29 33 | 28 32  32 39 |
+| e_shoff      |  4 8 |  33 41 | 33 36  40 47 |
+| e_flags      |    4 |  37 49 | 37 40  48 51 |
+| e_ehsize     |    2 |  41 53 | 41 42  52 53 |
+| e_phentsize  |    2 |  43 55 | 43 44  54 55 |
+| e_phnum      |    2 |  45 57 | 45 46  56 57 |
+| e_shentsize  |    2 |  47 59 | 47 48  58 59 |
+| e_shnum      |    2 |  49 61 | 49 50  60 61 |
+| e_shstrndx   |    2 |  51 63 | 51 52  62 63 |
