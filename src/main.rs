@@ -5,25 +5,22 @@ use std::path::Path;
 extern crate endianness;
 use endianness::*;
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum ELFISA {
     NoSpecificInstructionSet = 0x00,
     ATTWE32100 = 0x01,
     SPARC = 0x02,
     X86 = 0x03,
-    AMD64 = 0x3E
+    AMD64 = 0x3E,
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum ELFVersion {
     EVNone = 0,
     EVCurrent = 1,
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum ELFError {
     InvalidSectionHeaderEntryCount,
     InvalidSectionHeaderTableSize,
@@ -43,19 +40,15 @@ enum ELFError {
     InvalidProgramHeaderStart,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
-enum ELFPadding {
-}
+#[derive(PartialEq, Debug)]
+enum ELFPadding {}
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 enum ELFABIVersion {
-    Unspecified
+    Unspecified,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 enum ELFObjectFileType {
     ETNONE = 0x00,
     ETREL = 0x01,
@@ -65,11 +58,10 @@ enum ELFObjectFileType {
     ETLOOS = 0xFE00,
     ETHIOS = 0xFEFF,
     ETLOPROC = 0xFF00,
-    ETHIPROC = 0xFFFF
+    ETHIPROC = 0xFFFF,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 enum ELFABI {
     SystemV = 0x00,
     HpUx = 0x01,
@@ -91,8 +83,7 @@ enum ELFABI {
     StratusTechnologiesOpenVos = 0x12,
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 struct ELFFile {
     bytes: Vec<u8>,
 }
@@ -101,30 +92,27 @@ impl ELFFile {
     fn get_bytes(&self, start: usize, end: usize) -> Option<u64> {
         if self.bytes.len() < end - 1 {
             println!("Invalid bytes length");
-            return None
+            return None;
         }
 
         let endianess = if self.is_big_endian() {
             ByteOrder::BigEndian
-        }
-        else {
+        } else {
             ByteOrder::LittleEndian
         };
 
         let dv = end - start;
         let range = &self.bytes[start..end];
 
-        let n : u64 = if dv == 2 {
+        let n: u64 = if dv == 2 {
             read_u16(range, endianess).ok()? as u64
-        }
-        else if dv == 4 {
+        } else if dv == 4 {
             read_u32(range, endianess).ok()? as u64
-        }
-        else {
+        } else {
             read_u64(range, endianess).ok()?
         };
 
-        return Some(n)
+        return Some(n);
     }
 
     fn get_section_header_table_index(&self) -> Result<u16, ELFError> {
@@ -132,7 +120,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidSectionHeaderEntryCount)
+            None => Err(ELFError::InvalidSectionHeaderEntryCount),
         }
     }
 
@@ -141,7 +129,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidSectionHeaderEntryCount)
+            None => Err(ELFError::InvalidSectionHeaderEntryCount),
         }
     }
 
@@ -150,7 +138,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidSectionHeaderTableSize)
+            None => Err(ELFError::InvalidSectionHeaderTableSize),
         }
     }
 
@@ -159,7 +147,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u32),
-            None => Err(ELFError::InvalidProgramHeaderEntriesNumber)
+            None => Err(ELFError::InvalidProgramHeaderEntriesNumber),
         }
     }
 
@@ -169,7 +157,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidProgramHeaderTableSize)
+            None => Err(ELFError::InvalidProgramHeaderTableSize),
         }
     }
 
@@ -179,7 +167,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidHeaderSize)
+            None => Err(ELFError::InvalidHeaderSize),
         }
     }
 
@@ -189,7 +177,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidEFlags)
+            None => Err(ELFError::InvalidEFlags),
         }
     }
 
@@ -200,7 +188,7 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidSectionHeaderStart)
+            None => Err(ELFError::InvalidSectionHeaderStart),
         }
     }
 
@@ -211,21 +199,21 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidProgramHeaderStart)
+            None => Err(ELFError::InvalidProgramHeaderStart),
         }
     }
 
     fn get_machine_string(&self) -> &'static str {
         match self.get_machine_instruction_set() {
             Ok(ELFISA::AMD64) => "Advanced Micro Devices X86-64",
-            _ => "Unknown ISA"
+            _ => "Unknown ISA",
         }
     }
 
     fn get_machine_instruction_set(&self) -> Result<ELFISA, ELFError> {
         match (self.bytes[18], self.bytes[19]) {
             (0x3E, 0x00) => Ok(ELFISA::AMD64),
-            _ => Err(ELFError::InvalidIsa)
+            _ => Err(ELFError::InvalidIsa),
         }
     }
 
@@ -237,15 +225,14 @@ impl ELFFile {
 
         match n {
             Some(n) => Ok(n as u16),
-            None => Err(ELFError::InvalidEntryPoint)
+            None => Err(ELFError::InvalidEntryPoint),
         }
     }
 
     fn get_endianness_string(&self) -> &'static str {
         if self.is_big_endian() {
             "big endian"
-        }
-        else {
+        } else {
             "little endian"
         }
     }
@@ -253,7 +240,7 @@ impl ELFFile {
     fn get_e_version(&self) -> Result<ELFVersion, ELFError> {
         match self.bytes[22] {
             0x01 => Ok(ELFVersion::EVCurrent),
-            _ => Err(ELFError::InvalidVersion)
+            _ => Err(ELFError::InvalidVersion),
         }
     }
 
@@ -261,7 +248,7 @@ impl ELFFile {
         match self.get_object_file_type() {
             Ok(ELFObjectFileType::ETNONE) => "None",
             Ok(ELFObjectFileType::ETDYN) => "DYN (Position-Independent Executable file)",
-            _ => "Unknown"
+            _ => "Unknown",
         }
     }
 
@@ -272,15 +259,14 @@ impl ELFFile {
             (0x02, 0x00) => Ok(ELFObjectFileType::ETEXEC),
             (0x03, 0x00) => Ok(ELFObjectFileType::ETDYN),
             (0x04, 0x00) => Ok(ELFObjectFileType::ETCORE),
-            _ => Err(ELFError::InvalidObjectFileType)
+            _ => Err(ELFError::InvalidObjectFileType),
         }
     }
 
     fn get_padding(&self) -> Result<&[u8], ELFError> {
         if self.bytes.len() >= 16 {
             Ok(&(self.bytes)[9..16])
-        }
-        else {
+        } else {
             Err(ELFError::InvalidPadding)
         }
     }
@@ -288,21 +274,21 @@ impl ELFFile {
     fn get_abi_version_string(&self) -> &'static str {
         match self.get_abi_version() {
             Ok(ELFABIVersion::Unspecified) => "0",
-            _ => "Unknown ABI Version"
+            _ => "Unknown ABI Version",
         }
     }
 
     fn get_abi_version(&self) -> Result<ELFABIVersion, ELFError> {
         match self.bytes[8] {
             0 => Ok(ELFABIVersion::Unspecified),
-            _ => Err(ELFError::InvalidAbiVersion)
+            _ => Err(ELFError::InvalidAbiVersion),
         }
     }
 
     fn get_os_abi_string(&self) -> &'static str {
         match self.get_os_abi() {
             Ok(ELFABI::SystemV) => "Unix - System V",
-            _ => "Unknown"
+            _ => "Unknown",
         }
     }
 
@@ -328,7 +314,6 @@ impl ELFFile {
             0x12 => Ok(ELFABI::StratusTechnologiesOpenVos),
             _ => Err(ELFError::InvalidOsAbi),
         }
-
     }
 
     fn get_version(&self) -> Result<ELFVersion, ELFError> {
@@ -367,7 +352,7 @@ impl ELFFile {
 
         match bytes_result {
             Ok(bytes) => Ok(ELFFile { bytes: bytes }),
-            _ => Err(ELFError::InvalidFile)
+            _ => Err(ELFError::InvalidFile),
         }
     }
 }
@@ -377,21 +362,59 @@ fn show_headers(elf: ELFFile) -> Result<(), ELFError> {
     println!(" Magic: ");
     println!(" Class: {}", if elf.is_64bit() { "ELF64" } else { "ELF32" });
     println!(" Data: {}", elf.get_endianness_string());
-    println!(" Version: {}", if elf.get_version() == Ok(ELFVersion::EVCurrent) { "1 (Current)" } else { "0" });
+    println!(
+        " Version: {}",
+        if elf.get_version() == Ok(ELFVersion::EVCurrent) {
+            "1 (Current)"
+        } else {
+            "0"
+        }
+    );
     println!(" OS/ABI: {}", elf.get_os_abi_string());
-    println!(" ABI Version: {}", if elf.get_abi_version() == Err(ELFError::InvalidAbiVersion) { "1" } else { "0" });
+    println!(
+        " ABI Version: {}",
+        if elf.get_abi_version() == Err(ELFError::InvalidAbiVersion) {
+            "1"
+        } else {
+            "0"
+        }
+    );
     println!(" Type: {}", elf.get_object_file_type_string());
     println!(" Machine: {}", elf.get_machine_string());
-    println!(" Entry point address: {:#01X}", elf.get_entry_point().unwrap_or_default());
-    println!(" Start of program headers: {} (bytes into file)", elf.get_program_header_start()?);
-    println!(" Start of section headers: {} (bytes into file)", elf.get_section_header_start()?);
+    println!(
+        " Entry point address: {:#01X}",
+        elf.get_entry_point().unwrap_or_default()
+    );
+    println!(
+        " Start of program headers: {} (bytes into file)",
+        elf.get_program_header_start()?
+    );
+    println!(
+        " Start of section headers: {} (bytes into file)",
+        elf.get_section_header_start()?
+    );
     println!(" Flags: {}", elf.get_e_flags()?);
     println!(" Size of this header: {} (bytes)", elf.get_header_size()?);
-    println!(" Size of program headers: {} (bytes)", elf.get_program_header_table_size()?);
-    println!(" Number of program headers: {}", elf.get_program_header_entries_number()?);
-    println!(" Size of section headers: {} (bytes)", elf.get_section_header_size()?);
-    println!(" Number of section headers: {}", elf.get_section_header_entry_count()?);
-    println!(" Section header string table index: {}", elf.get_section_header_table_index()?);
+    println!(
+        " Size of program headers: {} (bytes)",
+        elf.get_program_header_table_size()?
+    );
+    println!(
+        " Number of program headers: {}",
+        elf.get_program_header_entries_number()?
+    );
+    println!(
+        " Size of section headers: {} (bytes)",
+        elf.get_section_header_size()?
+    );
+    println!(
+        " Number of section headers: {}",
+        elf.get_section_header_entry_count()?
+    );
+    println!(
+        " Section header string table index: {}",
+        elf.get_section_header_table_index()?
+    );
 
     Ok(())
 }
@@ -404,19 +427,20 @@ fn main() -> io::Result<()> {
         Ok(elf) => {
             elf.get_program_header_start();
             show_headers(elf);
-        },
-        _ => ({
-            println!("Could not load elf file");
-        })
+        }
+        _ => {
+            ({
+                println!("Could not load elf file");
+            })
+        }
     }
 
     return Ok(());
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::{ELFFile, ELFVersion, ELFISA, ELFABI, ELFObjectFileType, ELFError};
+    use crate::{ELFError, ELFFile, ELFObjectFileType, ELFVersion, ELFABI, ELFISA};
 
     #[test]
     fn test_get_section_header_table_index_64_bits() {
@@ -427,7 +451,7 @@ mod tests {
         bytes[63] = 0x00;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(0x0024);
@@ -445,7 +469,7 @@ mod tests {
         bytes[61] = 0x00;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(0x0025);
@@ -463,7 +487,7 @@ mod tests {
         bytes[59] = 0x00;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(64);
@@ -481,7 +505,7 @@ mod tests {
         bytes[57] = 0x00;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(0x000D);
@@ -500,7 +524,7 @@ mod tests {
         bytes[55] = 0x00;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(56);
@@ -508,7 +532,6 @@ mod tests {
 
         assert_eq!(expected, got);
     }
-
 
     #[test]
     fn test_get_header_size_64_bits() {
@@ -520,7 +543,7 @@ mod tests {
         bytes[53] = 0x00;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(64);
@@ -537,7 +560,7 @@ mod tests {
         bytes[48] = 0;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(0x0);
@@ -554,7 +577,7 @@ mod tests {
         bytes[41] = 0x47;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(18176);
@@ -573,7 +596,7 @@ mod tests {
         bytes[32] = 0x40;
 
         let elf = ELFFile {
-            bytes: bytes.to_vec()
+            bytes: bytes.to_vec(),
         };
 
         let expected = Ok(64);
@@ -585,7 +608,10 @@ mod tests {
     #[test]
     fn test_get_machine_isa_amd64() {
         let elf = ELFFile {
-            bytes: vec![0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x3E, 0, 0 ,0 ,0 ,0, 0x40, 0x10, 0, 0, 0, 0, 0, 0]
+            bytes: vec![
+                0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x3E, 0, 0, 0, 0, 0, 0x40,
+                0x10, 0, 0, 0, 0, 0, 0,
+            ],
         };
 
         let expected = Ok(ELFISA::AMD64);
@@ -597,7 +623,10 @@ mod tests {
     #[test]
     fn test_get_entry_point() {
         let elf = ELFFile {
-            bytes: vec![0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0 ,0 ,0, 0x40, 0x10, 0, 0, 0, 0, 0, 0]
+            bytes: vec![
+                0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0x10,
+                0, 0, 0, 0, 0, 0,
+            ],
         };
 
         let expected = Ok(4160);
@@ -609,7 +638,10 @@ mod tests {
     #[test]
     fn test_get_e_version_valid() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0, 0xFF,
+                0xFF, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00,
+            ],
         };
 
         let expected: Result<ELFVersion, ELFError> = Ok(ELFVersion::EVCurrent);
@@ -621,7 +653,10 @@ mod tests {
     #[test]
     fn test_get_e_version_invalid() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0, 0xFF, 0xFF, 0xFF, 0xFF, 0x00]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0, 0xFF,
+                0xFF, 0xFF, 0xFF, 0x00,
+            ],
         };
 
         let expected: Result<ELFVersion, ELFError> = Err(ELFError::InvalidVersion);
@@ -633,7 +668,9 @@ mod tests {
     #[test]
     fn test_get_object_file_type_core() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0,
+            ],
         };
 
         let expected: Result<ELFObjectFileType, ELFError> = Ok(ELFObjectFileType::ETCORE);
@@ -645,7 +682,9 @@ mod tests {
     #[test]
     fn test_get_object_file_type_dyn() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x3, 0x0]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x3, 0x0,
+            ],
         };
 
         let expected: Result<ELFObjectFileType, ELFError> = Ok(ELFObjectFileType::ETDYN);
@@ -657,7 +696,9 @@ mod tests {
     #[test]
     fn test_get_object_file_type_exec() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x2, 0x0]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x2, 0x0,
+            ],
         };
 
         let expected: Result<ELFObjectFileType, ELFError> = Ok(ELFObjectFileType::ETEXEC);
@@ -669,7 +710,9 @@ mod tests {
     #[test]
     fn test_get_object_file_type_rel() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x1, 0x0]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x1, 0x0,
+            ],
         };
 
         let expected: Result<ELFObjectFileType, ELFError> = Ok(ELFObjectFileType::ETREL);
@@ -681,7 +724,9 @@ mod tests {
     #[test]
     fn test_get_object_file_type_none() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x0, 0x0]
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x0, 0x0,
+            ],
         };
 
         let expected: Result<ELFObjectFileType, ELFError> = Ok(ELFObjectFileType::ETNONE);
@@ -693,7 +738,9 @@ mod tests {
     #[test]
     fn test_get_padding() {
         let elf = ELFFile {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0],
+            bytes: vec![
+                0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0,
+            ],
         };
 
         let expected: Result<&[u8], ELFError> = Ok(&[0 as u8, 0, 0, 0, 0, 0, 0]);
