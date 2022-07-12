@@ -184,9 +184,25 @@ impl fmt::Display for ELFABI {
     }
 }
 
-// #[derive(Debug)]
-// struct ProgramHeaders {
-// }
+fn to_number(bytes: &[u8], start: usize, end: usize, endianness: endianness::ByteOrder) -> Option<u64> {
+    if bytes.len() < end - 1 {
+        eprintln!("Invalid bytes length");
+        return None;
+    }
+
+    let dv = end - start;
+    let range = &bytes[start..end];
+
+    let n: u64 = if dv == 2 {
+        read_u16(range, endianness).ok()? as u64
+    } else if dv == 4 {
+        read_u32(range, endianness).ok()? as u64
+    } else {
+        read_u64(range, endianness).ok()?
+    };
+
+    Some(n)
+}
 
 #[derive(Debug, PartialEq)]
 struct ELFHeaders {
@@ -286,18 +302,7 @@ impl<'a> ELFParser<'a> {
             ByteOrder::LittleEndian
         };
 
-        let dv = end - start;
-        let range = &self.bytes[start..end];
-
-        let n: u64 = if dv == 2 {
-            read_u16(range, endianess).ok()? as u64
-        } else if dv == 4 {
-            read_u32(range, endianess).ok()? as u64
-        } else {
-            read_u64(range, endianess).ok()?
-        };
-
-        Some(n)
+        to_number(self.bytes, start, end, endianess)
     }
 
     fn get_section_header_table_index(&self) -> Result<u16, ELFError> {
@@ -575,7 +580,7 @@ mod tests {
         bytes[63] = 0x00;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(0x0024);
@@ -593,7 +598,7 @@ mod tests {
         bytes[61] = 0x00;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(0x0025);
@@ -611,7 +616,7 @@ mod tests {
         bytes[59] = 0x00;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(64);
@@ -629,7 +634,7 @@ mod tests {
         bytes[57] = 0x00;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(0x000D);
@@ -648,7 +653,7 @@ mod tests {
         bytes[55] = 0x00;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(56);
@@ -667,7 +672,7 @@ mod tests {
         bytes[53] = 0x00;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(64);
@@ -684,7 +689,7 @@ mod tests {
         bytes[48] = 0;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(0x0);
@@ -701,7 +706,7 @@ mod tests {
         bytes[41] = 0x47;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(18176);
@@ -720,7 +725,7 @@ mod tests {
         bytes[32] = 0x40;
 
         let elf = ELFParser {
-            bytes: bytes.to_vec(),
+            bytes: &bytes.to_vec(),
         };
 
         let expected = Ok(64);
@@ -732,7 +737,7 @@ mod tests {
     #[test]
     fn test_get_machine_isa_amd64() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x3E, 0, 0, 0, 0, 0, 0x40,
                 0x10, 0, 0, 0, 0, 0, 0,
             ],
@@ -747,7 +752,7 @@ mod tests {
     #[test]
     fn test_get_entry_point() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0x10,
                 0, 0, 0, 0, 0, 0,
             ],
@@ -762,7 +767,7 @@ mod tests {
     #[test]
     fn test_get_e_version_valid() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0, 0xFF,
                 0xFF, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00,
             ],
@@ -776,7 +781,7 @@ mod tests {
 
     #[test]
     fn test_get_e_version_invalid() {
-        let elf = ELFParser { bytes: vec![0] };
+        let elf = ELFParser { bytes: &vec![0] };
 
         let expected: Result<ELFVersion, ELFError> = Err(ELFError::InvalidVersion);
         let got = elf.get_e_version();
@@ -787,7 +792,7 @@ mod tests {
     #[test]
     fn test_get_object_file_type_core() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x4, 0x0,
             ],
         };
@@ -801,7 +806,7 @@ mod tests {
     #[test]
     fn test_get_object_file_type_dyn() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x3, 0x0,
             ],
         };
@@ -815,7 +820,7 @@ mod tests {
     #[test]
     fn test_get_object_file_type_exec() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x2, 0x0,
             ],
         };
@@ -829,7 +834,7 @@ mod tests {
     #[test]
     fn test_get_object_file_type_rel() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x1, 0x0,
             ],
         };
@@ -843,7 +848,7 @@ mod tests {
     #[test]
     fn test_get_object_file_type_none() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0, 0x0, 0x0,
             ],
         };
@@ -857,7 +862,7 @@ mod tests {
     #[test]
     fn test_get_padding() {
         let elf = ELFParser {
-            bytes: vec![
+            bytes: &vec![
                 0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01, 1, 0, 0, 0, 0, 0, 0, 0,
             ],
         };
@@ -871,7 +876,7 @@ mod tests {
     #[test]
     fn test_os_abi_hpux() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x01],
         };
 
         let expected = Ok(ELFABI::HpUx);
@@ -883,7 +888,7 @@ mod tests {
     #[test]
     fn test_os_abi_netbsd() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x02],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x02],
         };
 
         let expected = Ok(ELFABI::NetBsd);
@@ -895,7 +900,7 @@ mod tests {
     #[test]
     fn test_os_abi_linux() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x03],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x03],
         };
 
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::Linux));
@@ -904,7 +909,7 @@ mod tests {
     #[test]
     fn test_os_abi_hurd() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x04],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x04],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::GnuHurd));
     }
@@ -912,7 +917,7 @@ mod tests {
     #[test]
     fn test_os_abi_solaris() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x06],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x06],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::Solaris));
     }
@@ -920,7 +925,7 @@ mod tests {
     #[test]
     fn test_os_abi_aix() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x07],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x07],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::Aix));
     }
@@ -928,7 +933,7 @@ mod tests {
     #[test]
     fn test_os_abi_irix() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x08],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x08],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::Irix));
     }
@@ -936,7 +941,7 @@ mod tests {
     #[test]
     fn test_os_abi_freebsd() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x09],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x09],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::FreeBsd));
     }
@@ -944,7 +949,7 @@ mod tests {
     #[test]
     fn test_os_abi_tru64() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0a],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0a],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::Tru64));
     }
@@ -952,7 +957,7 @@ mod tests {
     #[test]
     fn test_os_abi_novellmodesto() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0b],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0b],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::NovellModesto));
     }
@@ -960,7 +965,7 @@ mod tests {
     #[test]
     fn test_os_abi_openbsd() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0c],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0c],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::OpenBsd));
     }
@@ -968,7 +973,7 @@ mod tests {
     #[test]
     fn test_os_abi_openvms() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0d],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0d],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::OpenVms));
     }
@@ -976,7 +981,7 @@ mod tests {
     #[test]
     fn test_os_abi_nonstopkernel() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0e],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0e],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::NonstopKernel));
     }
@@ -984,7 +989,7 @@ mod tests {
     #[test]
     fn test_os_abi_aros() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0f],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x0f],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::Aros));
     }
@@ -992,7 +997,7 @@ mod tests {
     #[test]
     fn test_os_abi_fenixos() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x10],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x10],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::FenixOs));
     }
@@ -1000,7 +1005,7 @@ mod tests {
     #[test]
     fn test_os_abi_nuxicloud() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x11],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x11],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::NuxiCloudAbi));
     }
@@ -1008,7 +1013,7 @@ mod tests {
     #[test]
     fn test_os_abi_stratustechnologiesopenvos() {
         let elf = ELFParser {
-            bytes: vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x12],
+            bytes: &vec![0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0x12],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::StratusTechnologiesOpenVos));
     }
@@ -1016,7 +1021,7 @@ mod tests {
     #[test]
     fn test_os_abi_systemv() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x0],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1, 0x0],
         };
         assert_eq!(elf.get_os_abi(), Ok(ELFABI::SystemV));
     }
@@ -1024,7 +1029,7 @@ mod tests {
     #[test]
     fn test_elf_version_current() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 1],
         };
         assert_eq!(elf.get_version(), Ok(ELFVersion::EVCurrent));
     }
@@ -1032,7 +1037,7 @@ mod tests {
     #[test]
     fn test_elf_version_none() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 0],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1, 0],
         };
         assert_eq!(elf.get_version(), Ok(ELFVersion::EVNone));
     }
@@ -1040,7 +1045,7 @@ mod tests {
     #[test]
     fn test_little_endian() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 1],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 1],
         };
 
         assert!(!elf.is_big_endian());
@@ -1050,7 +1055,7 @@ mod tests {
     #[test]
     fn test_big_endian() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2, 2],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2, 2],
         };
 
         assert!(elf.is_big_endian());
@@ -1060,7 +1065,7 @@ mod tests {
     #[test]
     fn identify_64_bit() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 2],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 2],
         };
 
         assert!(elf.is_64bit());
@@ -1070,7 +1075,7 @@ mod tests {
     #[test]
     fn identify_32_bit() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46, 1],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46, 1],
         };
 
         assert!(elf.is_32bit());
@@ -1080,7 +1085,7 @@ mod tests {
     #[test]
     fn identify_elf_file() {
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x46],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x46],
         };
         assert!(elf.is_elf());
     }
@@ -1088,22 +1093,22 @@ mod tests {
     #[test]
     fn identify_not_elf_file() {
         let elf = ELFParser {
-            bytes: vec![0x7C, 0x45, 0x4C, 0x46],
+            bytes: &vec![0x7C, 0x45, 0x4C, 0x46],
         };
         assert!(!elf.is_elf());
 
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x4C, 0x4C, 0x46],
+            bytes: &vec![0x7F, 0x4C, 0x4C, 0x46],
         };
         assert!(!elf.is_elf());
 
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4F, 0x46],
+            bytes: &vec![0x7F, 0x45, 0x4F, 0x46],
         };
         assert!(!elf.is_elf());
 
         let elf = ELFParser {
-            bytes: vec![0x7F, 0x45, 0x4C, 0x4C],
+            bytes: &vec![0x7F, 0x45, 0x4C, 0x4C],
         };
         assert!(!elf.is_elf());
     }
