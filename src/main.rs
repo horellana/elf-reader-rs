@@ -290,23 +290,17 @@ impl ELFHeaders {
 }
 
 impl<'a> ELFParser<'a> {
-    fn bytes_to_number(&self, start: usize, end: usize) -> Option<u64> {
-        if self.bytes.len() < end - 1 {
-            eprintln!("Invalid bytes length");
-            return None;
-        }
-
-        let endianess = if self.is_big_endian() {
+    fn get_endianness(&self) -> endianness::ByteOrder {
+        if self.is_big_endian() {
             ByteOrder::BigEndian
-        } else {
+        }
+        else {
             ByteOrder::LittleEndian
-        };
-
-        to_number(self.bytes, start, end, endianess)
+        }
     }
 
     fn get_section_header_table_index(&self) -> Result<u16, ELFError> {
-        let n = self.bytes_to_number(62, 64);
+        let n = to_number(self.bytes, 62, 64, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -315,7 +309,7 @@ impl<'a> ELFParser<'a> {
     }
 
     fn get_section_header_entry_count(&self) -> Result<u16, ELFError> {
-        let n = self.bytes_to_number(60, 62);
+        let n = to_number(self.bytes, 60, 62, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -324,7 +318,7 @@ impl<'a> ELFParser<'a> {
     }
 
     fn get_section_header_size(&self) -> Result<u16, ELFError> {
-        let n = self.bytes_to_number(58, 60);
+        let n = to_number(self.bytes, 58, 60, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -333,7 +327,7 @@ impl<'a> ELFParser<'a> {
     }
 
     fn get_program_header_entries_number(&self) -> Result<u32, ELFError> {
-        let n = self.bytes_to_number(56, 58);
+        let n = to_number(self.bytes, 56, 58, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u32),
@@ -343,7 +337,7 @@ impl<'a> ELFParser<'a> {
 
     fn get_program_header_table_size(&self) -> Result<u16, ELFError> {
         let start = if self.is_64bit() { 54 } else { 43 };
-        let n = self.bytes_to_number(start, start + 2);
+        let n = to_number(self.bytes, start, start + 2, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -353,7 +347,7 @@ impl<'a> ELFParser<'a> {
 
     fn get_header_size(&self) -> Result<u16, ELFError> {
         let start = if self.is_64bit() { 52 } else { 41 };
-        let n = self.bytes_to_number(start, start + 2);
+        let n = to_number(self.bytes, start, start + 2, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -363,7 +357,7 @@ impl<'a> ELFParser<'a> {
 
     fn get_e_flags(&self) -> Result<u16, ELFError> {
         let start = if self.is_64bit() { 48 } else { 37 };
-        let n = self.bytes_to_number(start, start + 2);
+        let n = to_number(self.bytes, start, start + 2, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -374,7 +368,7 @@ impl<'a> ELFParser<'a> {
     fn get_section_header_start(&self) -> Result<u16, ELFError> {
         let start = if self.is_64bit() { 40 } else { 33 };
         let size = if self.is_64bit() { 8 } else { 4 };
-        let n = self.bytes_to_number(start, start + size);
+        let n = to_number(self.bytes, start, start + size, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -385,7 +379,7 @@ impl<'a> ELFParser<'a> {
     fn get_program_header_start(&self) -> Result<u16, ELFError> {
         let start = if self.is_64bit() { 32 } else { 28 };
         let size = if self.is_64bit() { 8 } else { 4 };
-        let n = self.bytes_to_number(start, start + size);
+        let n = to_number(self.bytes, start, start + size, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
@@ -404,7 +398,7 @@ impl<'a> ELFParser<'a> {
         let start = 24;
         let size = if self.is_64bit() { 8 } else { 4 };
 
-        let n = self.bytes_to_number(start, start + size);
+        let n = to_number(self.bytes, start, start + size, self.get_endianness());
 
         match n {
             Some(n) => Ok(n as u16),
