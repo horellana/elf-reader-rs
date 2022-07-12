@@ -19,6 +19,16 @@ struct CommandLineArguments {
     file_headers: bool,
 }
 
+impl CommandLineArguments {
+    fn should_load_file(&self) -> bool {
+        if self.file_headers {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum EClass {
     X32 = 0x01,
@@ -201,72 +211,69 @@ struct ELFHeaders {
 }
 
 #[derive(Debug, PartialEq)]
-struct ELFParser {
-    bytes: Vec<u8>,
+struct ELFParser<'a> {
+    bytes: &'a Vec<u8>,
 }
 
 impl ELFHeaders {
-    fn from_file(path: &Path) -> Result<ELFHeaders, ELFError> {
-        let parser = ELFParser::from_file(path);
+    fn from_bytes(bytes: &Vec<u8>) -> Result<ELFHeaders, ELFError> {
+        let parser = ELFParser { bytes: &bytes };
 
-        match parser {
-            Ok(parser) => {
-                let e_class = if parser.is_64bit() {
-                    EClass::X64
-                } else {
-                    EClass::X32
-                };
-                let e_data = if parser.is_big_endian() {
-                    EData::BigEndian
-                } else {
-                    EData::LittleEndian
-                };
-                let e_version = parser.get_e_version()?;
-                let e_osabi = parser.get_os_abi()?;
-                let e_abiversion = parser.get_abi_version()?;
-                let e_type = parser.get_object_file_type()?;
-                let e_machine = parser.get_machine_instruction_set()?;
-                let e_entry = parser.get_entry_point()?;
-                let e_phoff = parser.get_program_header_start()?;
-                let e_shoff = parser.get_section_header_start()?;
-                let e_flags = parser.get_e_flags()?;
-                let e_ehsize = parser.get_header_size()?;
-                let e_phentsize = parser.get_program_header_table_size()?;
-                let e_phnum = parser.get_program_header_entries_number()?;
-                let e_shentsize = parser.get_section_header_size()?;
-                let e_shnum = parser.get_section_header_entry_count()?;
-                let e_shstrndx = parser.get_section_header_table_index()?;
-                let e_pad = [0_u8; 7];
+        let e_class = if parser.is_64bit() {
+            EClass::X64
+        } else {
+            EClass::X32
+        };
 
-                let elf_headers = ELFHeaders {
-                    e_class,
-                    e_data,
-                    e_version,
-                    e_osabi,
-                    e_abiversion,
-                    e_type,
-                    e_machine,
-                    e_entry,
-                    e_phoff,
-                    e_shoff,
-                    e_flags,
-                    e_ehsize,
-                    e_phentsize,
-                    e_phnum,
-                    e_shentsize,
-                    e_shnum,
-                    e_shstrndx,
-                    e_pad,
-                };
+        let e_data = if parser.is_big_endian() {
+            EData::BigEndian
+        } else {
+            EData::LittleEndian
+        };
 
-                Ok(elf_headers)
-            }
-            Err(e) => Err(e),
-        }
+        let e_version = parser.get_e_version()?;
+        let e_osabi = parser.get_os_abi()?;
+        let e_abiversion = parser.get_abi_version()?;
+        let e_type = parser.get_object_file_type()?;
+        let e_machine = parser.get_machine_instruction_set()?;
+        let e_entry = parser.get_entry_point()?;
+        let e_phoff = parser.get_program_header_start()?;
+        let e_shoff = parser.get_section_header_start()?;
+        let e_flags = parser.get_e_flags()?;
+        let e_ehsize = parser.get_header_size()?;
+        let e_phentsize = parser.get_program_header_table_size()?;
+        let e_phnum = parser.get_program_header_entries_number()?;
+        let e_shentsize = parser.get_section_header_size()?;
+        let e_shnum = parser.get_section_header_entry_count()?;
+        let e_shstrndx = parser.get_section_header_table_index()?;
+        let e_pad = [0_u8; 7];
+
+        let elf_headers = ELFHeaders {
+            e_class,
+            e_data,
+            e_version,
+            e_osabi,
+            e_abiversion,
+            e_type,
+            e_machine,
+            e_entry,
+            e_phoff,
+            e_shoff,
+            e_flags,
+            e_ehsize,
+            e_phentsize,
+            e_phnum,
+            e_shentsize,
+            e_shnum,
+            e_shstrndx,
+            e_pad,
+        };
+
+        Ok(elf_headers)
     }
 }
 
-impl ELFParser {
+impl<'a> ELFParser<'a> {
     fn bytes_to_number(&self, start: usize, end: usize) -> Option<u64> {
         if self.bytes.len() < end - 1 {
             eprintln!("Invalid bytes length");
@@ -415,8 +422,7 @@ impl ELFParser {
     fn get_object_file_type(&self) -> Result<ELFObjectFileType, ELFError> {
         if self.bytes.len() < 18 {
             Err(ELFError::InvalidObjectFileType)
-        }
-        else {
+        } else {
             match (self.bytes[16], self.bytes[17]) {
                 (0x00, 0x00) => Ok(ELFObjectFileType::ETNONE),
                 (0x01, 0x00) => Ok(ELFObjectFileType::ETREL),
@@ -446,8 +452,7 @@ impl ELFParser {
     fn get_os_abi(&self) -> Result<ELFABI, ELFError> {
         if self.bytes.len() < 8 {
             Err(ELFError::InvalidOsAbi)
-        }
-        else {
+        } else {
             match self.bytes[7] {
                 0x00 => Ok(ELFABI::SystemV),
                 0x01 => Ok(ELFABI::HpUx),
@@ -506,16 +511,6 @@ impl ELFParser {
             && self.bytes[2] == 0x4C
             && self.bytes[3] == 0x46
     }
-
-    fn from_file(path: &Path) -> Result<ELFParser, ELFError> {
-        println!("Reading bytes from file {:?}", path);
-        let bytes_result = fs::read(path);
-
-        match bytes_result {
-            Ok(bytes) => Ok(ELFParser { bytes }),
-            _ => Err(ELFError::InvalidFile),
-        }
-    }
 }
 
 fn show_headers(elf: ELFHeaders) {
@@ -548,17 +543,19 @@ fn show_headers(elf: ELFHeaders) {
 
 fn main() -> io::Result<()> {
     let args = CommandLineArguments::parse();
-    let elf_result = ELFHeaders::from_file(Path::new(&args.file_path));
 
-    match elf_result {
-        Ok(elf) => {
-            if args.file_headers {
-                show_headers(elf);
-            }
-        }
-        Err(e) => {
-            eprintln!("Error when trying to read file {:?}", e);
-            process::exit(1);
+    if !args.should_load_file() {
+        process::exit(1);
+    }
+
+    let bytes = fs::read(args.file_path)?;
+
+    if args.file_headers {
+        let elf_headers = ELFHeaders::from_bytes(&bytes);
+
+        match elf_headers {
+            Ok(elf_headers) => show_headers(elf_headers),
+            Err(e) => eprintln!("{:?}", e),
         }
     }
 
