@@ -17,6 +17,9 @@ struct CommandLineArguments {
 
     #[clap(short = 'h', long, help = "Display the ELF file header")]
     file_headers: bool,
+
+    #[clap(short = 'l', long, help = "Display the program headers")]
+    program_headers: bool,
 }
 
 impl CommandLineArguments {
@@ -27,6 +30,26 @@ impl CommandLineArguments {
             false
         }
     }
+}
+
+fn to_number(bytes: &[u8], start: usize, end: usize, endianness: endianness::ByteOrder) -> Option<u64> {
+    if bytes.len() < end - 1 {
+        eprintln!("Invalid bytes length");
+        return None;
+    }
+
+    let dv = end - start;
+    let range = &bytes[start..end];
+
+    let n: u64 = if dv == 2 {
+        read_u16(range, endianness).ok()? as u64
+    } else if dv == 4 {
+        read_u32(range, endianness).ok()? as u64
+    } else {
+        read_u64(range, endianness).ok()?
+    };
+
+    Some(n)
 }
 
 #[derive(Debug, PartialEq)]
@@ -95,6 +118,11 @@ impl fmt::Display for ELFVersion {
 
 #[derive(Debug, PartialEq)]
 enum ELFError {
+    InvalidSegmentOffset,
+    InvalidVirtualAddressSegment,
+    InvalidSegmentDependentFlags,
+    InvalidSegmentType,
+    InvalidProgramHeaders,
     InvalidSectionHeaderEntryCount,
     InvalidSectionHeaderTableSize,
     InvalidProgramHeaderEntriesNumber,
@@ -184,24 +212,145 @@ impl fmt::Display for ELFABI {
     }
 }
 
-fn to_number(bytes: &[u8], start: usize, end: usize, endianness: endianness::ByteOrder) -> Option<u64> {
-    if bytes.len() < end - 1 {
-        eprintln!("Invalid bytes length");
-        return None;
+#[derive(Debug, PartialEq)]
+enum SegmentType {
+    PtNull = 0x00000000,
+    PtLoad = 0x00000001,
+    PtDynamic = 0x00000002,
+    PtInterp = 0x00000003,
+    PtNote = 0x00000004,
+    PtShlib = 0x00000005,
+    PtPhdr = 0x00000006,
+    PtTls = 0x00000007,
+    PtLoos = 0x60000000,
+    PtHios = 0x6FFFFFFF,
+    PtLoproc = 0x70000000,
+    PtHiproc = 0x7FFFFFFF
+}
+
+#[derive(Debug, PartialEq)]
+struct ProgramHeaders {
+    p_type: SegmentType,
+    p_flags: u32,
+    p_offset: u64,
+    p_vaddr: u64,
+    p_paddr: u64,
+    p_filesz: u64,
+    p_align: u64
+}
+
+struct ProgramHeadersParser<'a> {
+    offset: usize,
+    eclass: EClass,
+    endianness: endianness::ByteOrder,
+    bytes: &'a [u8],
+}
+
+impl<'a> ProgramHeadersParser<'a> {
+    fn from_bytes(&self) -> Result<ProgramHeaders, ELFError> {
+        let p_type = self.get_segment_type()?;
+        let p_flags = self.get_segment_flags()?;
+        let p_offset = self.get_segment_offset()?.into();
+        let p_vaddr = self.get_virtual_address_segment()?;
+        let p_paddr = self.get_physical_address_segment()?;
+        let p_filesz = self.get_file_image_segment_size()?;
+
+        let is_64bit = self.eclass == EClass::X64;
+
+        Ok(ProgramHeaders {
+            p_type,
+            p_flags,
+            p_offset,
+            p_vaddr,
+            p_paddr,
+            p_filesz,
+            p_align
+        })
     }
 
-    let dv = end - start;
-    let range = &bytes[start..end];
+    fn get_physical_address_segment(&self) -> Result<u64, ELFError> {
+        let offset = self.offset +
 
-    let n: u64 = if dv == 2 {
-        read_u16(range, endianness).ok()? as u64
-    } else if dv == 4 {
-        read_u32(range, endianness).ok()? as u64
-    } else {
-        read_u64(range, endianness).ok()?
-    };
 
-    Some(n)
+        if self.bytes.len() < (self.offset + 16) {
+            return Err(ELFError::InvalidVirtualAddressSegment);
+        }
+
+        let start: usize = self.offset + 8;
+        let end: usize = self.offset + 16;
+
+        match to_number(self.bytes, start, end, self.endianness) {
+            Some(number) => Ok(number as u64),
+            _ => Err(ELFError::InvalidVirtualAddressSegment)
+        }
+    }
+
+    fn get_virtual_address_segment(&self) -> Result<u64, ELFError> {
+        if self.bytes.len() < (self.offset + 8) {
+            return Err(ELFError::InvalidVirtualAddressSegment);
+        }
+
+        let start: usize = self.offset + 8;
+        let end: usize = self.offset + 16;
+
+        match to_number(self.bytes, start, end, self.endianness) {
+            Some(number) => Ok(number as u64),
+            _ => Err(ELFError::InvalidVirtualAddressSegment)
+        }
+    }
+
+    fn get_segment_offset(&self) -> Result<u64, ELFError> {
+        if self.bytes.len() < (self.offset + 8) {
+            return Err(ELFError::InvalidSegmentType);
+        }
+
+        let start: usize = self.offset + 8;
+        let end: usize = self.offset + 16;
+
+        match to_number(self.bytes, start, end, self.endianness) {
+            Some(number) => Ok(number as u64),
+            _ => Err(ELFError::InvalidSegmentDependentFlags)
+        }
+    }
+
+    fn get_segment_flags(&self) -> Result<u32, ELFError> {
+        if self.bytes.len() < (self.offset + 4) {
+            return Err(ELFError::InvalidSegmentType);
+        }
+
+        let start: usize = self.offset + 4;
+        let end: usize = self.offset + 8;
+
+        match to_number(self.bytes, start, end, self.endianness) {
+            Some(number) => Ok(number as u32),
+            _ => Err(ELFError::InvalidSegmentDependentFlags)
+        }
+    }
+
+    fn get_segment_type(&self) -> Result<SegmentType, ELFError> {
+        if self.bytes.len() < (self.offset + 0) {
+            return Err(ELFError::InvalidSegmentType);
+        }
+
+        let start: usize = self.offset + 0;
+        let end: usize = self.offset + 3;
+
+        match to_number(self.bytes, start, end, self.endianness) {
+            Some(0x00000000) => Ok(SegmentType::PtNull),
+            Some(0x00000001) => Ok(SegmentType::PtLoad),
+            Some(0x00000002) => Ok(SegmentType::PtDynamic),
+            Some(0x00000003) => Ok(SegmentType::PtInterp),
+            Some(0x00000004) => Ok(SegmentType::PtNote),
+            Some(0x00000005) => Ok(SegmentType::PtShlib),
+            Some(0x00000006) => Ok(SegmentType::PtPhdr),
+            Some(0x00000007) => Ok(SegmentType::PtTls),
+            Some(0x60000000) => Ok(SegmentType::PtLoos),
+            Some(0x6FFFFFFF) => Ok(SegmentType::PtHios),
+            Some(0x70000000) => Ok(SegmentType::PtLoproc),
+            Some(0x7FFFFFFF) => Ok(SegmentType::PtHiproc),
+            _ => Err(ELFError::InvalidSegmentType)
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -224,11 +373,6 @@ struct ELFHeaders {
     e_shentsize: u16,
     e_shnum: u16,
     e_shstrndx: u16,
-}
-
-#[derive(Debug, PartialEq)]
-struct ELFParser<'a> {
-    bytes: &'a Vec<u8>,
 }
 
 impl ELFHeaders {
@@ -287,6 +431,41 @@ impl ELFHeaders {
 
         Ok(elf_headers)
     }
+}
+
+impl fmt::Display for ELFHeaders {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,"ELF Header:\n")?;
+        write!(f," Magic: ")?;
+        write!(f," Class: {}\n", self.e_class)?;
+        write!(f," Data: {}\n", self.e_data)?;
+        write!(f," Version: {}\n", self.e_version)?;
+        write!(f," OS/ABI: {}\n", self.e_osabi)?;
+        write!(f," ABI Version: {}\n", self.e_abiversion)?;
+        write!(f," Type: {}\n", self.e_type)?;
+        write!(f," Machine: {}\n", self.e_machine)?;
+        write!(f," Entry point address: {:#01X}\n", self.e_entry)?;
+        write!(f,
+            " Start of program headers: {} (bytes into file)\n",
+            self.e_phoff
+        )?;
+        write!(f,
+            " Start of section headers: {} (bytes into file)\n",
+            self.e_shoff
+        )?;
+        write!(f," Flags: {}\n", self.e_flags)?;
+        write!(f," Size of this header: {} (bytes)\n", self.e_ehsize)?;
+        write!(f," Size of program headers: {} (bytes)\n", self.e_phentsize)?;
+        write!(f," Number of program headers: {}", self.e_phnum)?;
+        write!(f," Size of section headers: {} (bytes)\n", self.e_shentsize)?;
+        write!(f," Number of section headers: {}", self.e_shnum)?;
+        write!(f," Section header string table index: {}", self.e_shstrndx)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct ELFParser<'a> {
+    bytes: &'a [u8],
 }
 
 impl<'a> ELFParser<'a> {
@@ -512,34 +691,6 @@ impl<'a> ELFParser<'a> {
     }
 }
 
-fn show_headers(elf: ELFHeaders) {
-    println!("ELF Header:");
-    println!(" Magic: ");
-    println!(" Class: {}", elf.e_class);
-    println!(" Data: {}", elf.e_data);
-    println!(" Version: {}", elf.e_version);
-    println!(" OS/ABI: {}", elf.e_osabi);
-    println!(" ABI Version: {}", elf.e_abiversion);
-    println!(" Type: {}", elf.e_type);
-    println!(" Machine: {}", elf.e_machine);
-    println!(" Entry point address: {:#01X}", elf.e_entry);
-    println!(
-        " Start of program headers: {} (bytes into file)",
-        elf.e_phoff
-    );
-    println!(
-        " Start of section headers: {} (bytes into file)",
-        elf.e_shoff
-    );
-    println!(" Flags: {}", elf.e_flags);
-    println!(" Size of this header: {} (bytes)", elf.e_ehsize);
-    println!(" Size of program headers: {} (bytes)", elf.e_phentsize);
-    println!(" Number of program headers: {}", elf.e_phnum);
-    println!(" Size of section headers: {} (bytes)", elf.e_shentsize);
-    println!(" Number of section headers: {}", elf.e_shnum);
-    println!(" Section header string table index: {}", elf.e_shstrndx);
-}
-
 fn main() -> io::Result<()> {
     let args = CommandLineArguments::parse();
 
@@ -553,7 +704,7 @@ fn main() -> io::Result<()> {
         let elf_headers = ELFHeaders::from_bytes(&bytes);
 
         match elf_headers {
-            Ok(elf_headers) => show_headers(elf_headers),
+            Ok(elf_headers) => println!("{}", elf_headers),
             Err(e) => eprintln!("{:?}", e),
         }
     }
